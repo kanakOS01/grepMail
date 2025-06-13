@@ -1,12 +1,9 @@
 import os
-from smtplib import SMTP
-from venv import create
 
-import mindsdb_sdk
 from dotenv import load_dotenv
-import mindsdb_sdk.databases
 
-from grepmail.mindsdb.integrations.base import Base
+from grepmail.logger import logger
+from grepmail.mindsdb.handlers.base import Base
 
 # Load environment variables
 load_dotenv()
@@ -25,16 +22,20 @@ class EmailHandler(Base):
         project_name: str = "grepmail"
     ):
         super().__init__(mindsdb_server_url, project_name)
-        self._create_email_database(EMAIL_ID, EMAIL_PWD)
+        self._create_email_db(EMAIL_ID, EMAIL_PWD)
 
 
-    def _create_email_database(self, email: str, password: str):
+    def _create_email_db(self, email: str, password: str) -> None:
         """
-        Create an email database in MindsDB with the given email and password.
+        Create an email database in MindsDB with the given email and password if it doesn't already exist.
+
+        Args:
+            email (str): The email address.
+            password (str): The password for the email account.    
         """
         db_name_list = [db.name for db in self.server.list_databases()]
         if 'email_db' not in db_name_list:
-            print("Creating email database...")
+            logger.info("Creating email database...")
             email_db = self.server.create_database(
                 name='email_db',
                 engine='email',
@@ -48,8 +49,8 @@ class EmailHandler(Base):
             )
 
             if email_db:
-                print(f"Email database '{email_db.name}' created successfully.")
+                logger.info(f"Email database '{email_db.name}' created successfully.")
             else:
-                print("Failed to create email database.")
+                logger.error("Failed to create email database.")
         else:
-            print("Email database already exists. Skipping creation.")
+            logger.info("Email database already exists. Skipping creation.")

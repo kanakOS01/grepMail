@@ -14,5 +14,3 @@ class Base():
             self.project = self.server.get_project(project_name)
         except Exception:
             self.project = self.server.create_project(project_name)
-
-        

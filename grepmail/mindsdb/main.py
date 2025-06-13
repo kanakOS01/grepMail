@@ -1,7 +1,7 @@
 import mindsdb_sdk
 from mindsdb_sdk.server import Server
 
-from grepmail.mindsdb.integrations.email import EmailHandler
+from grepmail.mindsdb.handlers.email import EmailHandler
     
 
 if __name__ == '__main__':
