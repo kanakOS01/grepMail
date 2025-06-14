@@ -18,7 +18,12 @@ EMAIL_PWD = os.getenv('EMAIL_PWD')
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
 IMAP_SERVER = os.getenv('IMAP_SERVER', 'imap.gmail.com')
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'sk-abc123')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+PG_VECTOR_HOST = os.getenv('PG_VECTOR_HOST')
+PG_VECTOR_PORT = int(os.getenv('PG_VECTOR_PORT'))
+PG_VECTOR_USER = os.getenv('PG_VECTOR_USER')
+PG_VECTOR_PASSWORD = os.getenv('PG_VECTOR_PASSWORD')
+PG_VECTOR_DB = os.getenv('PG_VECTOR_DB')
 
 
 def get_email_db_name(email: str) -> str:
@@ -28,7 +33,7 @@ def get_email_db_name(email: str) -> str:
     return f'email_db_{email.split("@")[0]}'
 
 
-def create_and_get_email_db(server: Server, email: str, password: str) -> Database:
+def create_and_get_email_db(server: Server, email: str, password: str) -> Database | None:
     """
     Create an email database in MindsDB if it doesn't exist.
 
@@ -56,8 +61,11 @@ def create_and_get_email_db(server: Server, email: str, password: str) -> Databa
 
         if email_db:
             logger.info(f"Email database '{email_db.name}' created successfully.")
-        else:
-            logger.error("Failed to create email database.")
+            return email_db
+        
+        logger.error("Failed to create email database.")
+        return None
+    
     else:
         logger.info(f"Email database '{db_name}' already exists. Skipping creation.")
 
@@ -102,6 +110,72 @@ def query_email_db(server: Server, email: str, query: str) -> DataFrame | None:
         return None
 
 
+def get_storage_name(email: str) -> str:
+    """
+    Generate a storage name for the PostgreSQL vector storage.
+    """
+    return f'pg_vs_{email.split("@")[0]}'
+
+
+def create_and_get_storage(server: Server, email: str) -> Database | None:
+    """
+    Create a PostgreSQL vector storage in MindsDB.
+
+    Args:
+        server (Server): The MindsDB server instance.
+        email (str): The email address to create the storage for.
+    """
+    vs_name = get_storage_name(email)
+    db_names = [db.name for db in server.list_databases()]
+    if vs_name not in db_names:
+        logger.info(f"Creating storage '{vs_name}'...")
+        # pg_vs = server.create_database(
+        #     engine='postgres',
+        #     name=vs_name,
+        #     connection_args={
+        #         "host": PG_VECTOR_HOST,
+        #         "port": PG_VECTOR_PORT,
+        #         "database": PG_VECTOR_DB,
+        #         "user": PG_VECTOR_USER,
+        #         "password": PG_VECTOR_PASSWORD,
+        #         "distance": "cosine",
+        #     }
+        # )
+
+        create_query = f"""CREATE DATABASE {vs_name}
+WITH ENGINE = 'pgvector',
+PARAMETERS = {{
+    "host":  "{PG_VECTOR_HOST}",
+    "port": {PG_VECTOR_PORT},
+    "database": "{PG_VECTOR_DB}",
+    "user": "{PG_VECTOR_USER}",
+    "password": "{PG_VECTOR_PASSWORD}",
+    "distance": "cosine"
+}};
+"""
+
+        # if pg_vs:
+        #     logger.info(f"Storage '{pg_vs.name}' created successfully.")
+        #     return pg_vs
+        
+        # logger.error("Failed to create storage.")
+        # return None
+    
+        server.query(create_query).fetch()
+        try:
+            pg_vs = server.databases.get(vs_name)
+            logger.info(f"Storage '{pg_vs.name}' created successfully.")
+            return pg_vs
+        except Exception as e:
+            logger.error("Failed to create storage.")
+            return None
+
+    else:
+        logger.info(f"Storage '{vs_name}' already exists. Skipping creation.")
+
+    return server.get_database(vs_name)
+
+
 def get_email_kb_name(email: str) -> str:
     """
     Generate a knowledge base name based on the email address.
@@ -118,6 +192,7 @@ def create_and_get_email_kb(project: Project, email: str) -> KnowledgeBase | Non
         email (str): The email address to create the knowledge base for.
     """
     kb_name = get_email_kb_name(email)
+    vs_name = get_storage_name(email)
     kb_names = [kb.name for kb in project.knowledge_bases.list()]
 
     if kb_name not in kb_names:
@@ -126,7 +201,7 @@ def create_and_get_email_kb(project: Project, email: str) -> KnowledgeBase | Non
 USING
     embedding_model = {{
         "provider": "gemini",
-        "model_name" : "text-embedding-004",
+        "model_name": "text-embedding-004",
         "api_key": "{GEMINI_API_KEY}"
     }},
     reranking_model = {{
@@ -134,6 +209,7 @@ USING
         "model_name": "gemini-2.0-flash",
         "api_key": "{GEMINI_API_KEY}"
     }},
+    storage = {vs_name}.storage_table,
     metadata_columns = ['subject', 'datetime'],
     content_columns = ['body', 'from_field', 'to_field'],
     id_column = 'id';
