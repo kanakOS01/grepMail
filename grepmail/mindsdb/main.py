@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import mindsdb_sdk
 
 from grepmail.mindsdb.handlers.common import create_and_get_project
-from grepmail.mindsdb.handlers.email import create_and_get_email_db, query_email_db, create_and_get_email_kb, create_and_get_storage
+from grepmail.mindsdb.handlers.email import create_and_get_email_db, query_email_db, create_and_get_email_kb, create_and_get_storage, bulk_insert_email_kb
     
 load_dotenv()
 
@@ -19,10 +19,13 @@ if __name__ == '__main__':
     email_vs = create_and_get_storage(server, EMAIL_ID)
     email_kb = create_and_get_email_kb(project, EMAIL_ID)
 
+    bulk_insert_email_kb(project, email_kb, email_db)
+
     print("------------------------------------")
     print(server.databases.list())
     print(project.knowledge_bases.list())
     print("------------------------------------")
+
 
     # project.knowledge_bases.drop('email_kb_tanwarkanak2')
     # server.databases.drop('email_db_tanwarkanak2')

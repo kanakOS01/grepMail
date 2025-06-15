@@ -200,9 +200,9 @@ def create_and_get_email_kb(project: Project, email: str) -> KnowledgeBase | Non
         create_query = f"""CREATE KNOWLEDGE_BASE {kb_name}
 USING
     embedding_model = {{
-        "provider": "gemini",
-        "model_name": "text-embedding-004",
-        "api_key": "{GEMINI_API_KEY}"
+        "provider": "ollama",
+        "model_name": "nomic-embed-text",
+        "base_url": "http://localhost:11434"
     }},
     reranking_model = {{
         "provider": "gemini",
@@ -227,3 +227,35 @@ USING
         logger.info(f"Email knowledge base '{kb_name}' already exists. Skipping creation.")
     
     return project.knowledge_bases.get(kb_name)
+
+
+def bulk_insert_email_kb(project: Project, kb: KnowledgeBase, db: Database) -> None:
+    """
+    Bulk insert emails into the knowledge base.
+    To be used only when inserting data for the first time.
+
+    Args:
+        project (Project): The MindsDB project instance.
+        kb (KnowledgeBase): The MindsDB knowledge base instance.
+        db (Database): The MindsDB database instance.
+    """
+    kb_empty_query = f"SELECT * FROM {kb.name} LIMIT 1;"
+    res = project.query(kb_empty_query).fetch()
+
+    if not res.empty:
+        logger.info(f"Knowledge base '{kb.name}' is not empty. Skipping bulk insert.")
+        return
+
+    insert_query = f"""INSERT INTO {kb.name}
+SELECT *
+FROM {db.name}.emails
+LIMIT 100
+USING
+    kb_no_upsert = true,
+    batch_size = 50,
+    threads = 1,
+    track_column = id;
+"""
+    
+    project.query(insert_query).fetch()
+    
