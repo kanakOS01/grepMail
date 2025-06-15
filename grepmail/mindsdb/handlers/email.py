@@ -258,4 +258,30 @@ USING
 """
     
     project.query(insert_query).fetch()
+
+
+def query_email_kb(project: Project, kb: KnowledgeBase, query: str) -> DataFrame | None:
+    """
+    Query the email knowledge base.
+
+    Args:
+        project (Project): The MindsDB project instance.
+        kb (KnowledgeBase): The MindsDB knowledge base instance.
+        query (str): The SQL query to execute on the knowledge base.
+    """
+    select_query = f"""
+    SELECT *
+FROM {kb.name}
+WHERE content = '{query}'
+LIMIT 20
+USING
+    threads = 1;
+"""
     
+    try:
+        res = project.query(select_query).fetch()
+        logger.info(res)
+        return res
+    except Exception as e:
+        logger.error(f"Failed to query knowledge base '{kb.name}': {e}")
+        return None

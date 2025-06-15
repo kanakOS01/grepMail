@@ -3,6 +3,9 @@ import time
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.prompt import Prompt
+from rich.panel import Panel
+from rich.markdown import Markdown
 
 from grepmail.mindsdb.handlers.common import create_and_get_project
 from grepmail.mindsdb.handlers.email import (
@@ -10,6 +13,7 @@ from grepmail.mindsdb.handlers.email import (
     create_and_get_storage,
     create_and_get_email_kb,
     bulk_insert_email_kb,
+    query_email_kb
 )
 
 app = typer.Typer()
@@ -22,6 +26,12 @@ EMAIL_PWD = "yourpassword"      # Don't hardcode this in production
 @app.command()
 def run():
     """🚀 grepmail: Query your emails with AI-powered semantic search"""
+    console.print(Panel.fit(
+        "[bold cyan]📬 grepMail[/bold cyan]\n\n"
+        "[green]Semantic search across your emails using MindsDB, vector embeddings, and local LLMs.[/green]",
+        title="Welcome", border_style="cyan"
+    ))
+
     with Progress(
         SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True
     ) as progress:
@@ -53,14 +63,21 @@ def run():
 
     # Placeholder for query loop
     while True:
-        query = typer.prompt("🔍 Enter a semantic email query (or 'exit')")
-        if query.lower() in ["exit", "quit"]:
+        query = Prompt.ask("\n🔍 Enter a semantic email query (or 'exit')")
+        if query.strip().lower() == 'exit':
+            console.print("👋 Goodbye!")
             break
-        # Call a MindsDB query function here — we'll plug it in later
-        console.print(f"[cyan]→ You asked:[/cyan] {query}")
-        console.print("[yellow]🔎 Searching...[/yellow]")
-        # Placeholder result
-        console.print("[green]Top result:[/green] (placeholder)\n")
+
+        with console.status("🤖 Thinking...", spinner="dots"):
+            results = query_email_kb(project, email_kb, query)
+
+        # if not results:
+        #     console.print("[yellow]No results found.[/yellow]")
+        # else:
+        #     console.print("\n📬 [bold cyan]Results:[/bold cyan]")
+        #     for idx, row in enumerate(results, 1):
+        #         console.print(f"\n{idx}. [bold]{row.get('subject', 'No Subject')}[/bold]")
+        #         console.print(f"[dim]{row.get('body', '')[:200]}...[/dim]")
 
 
 if __name__ == "__main__":
