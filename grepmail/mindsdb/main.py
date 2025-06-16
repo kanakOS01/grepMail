@@ -1,10 +1,11 @@
 import os
+import json
 
 from dotenv import load_dotenv
 import mindsdb_sdk
 
 from grepmail.mindsdb.handlers.common import create_and_get_project
-from grepmail.mindsdb.handlers.email import create_and_get_email_db, query_email_db, create_and_get_email_kb, create_and_get_storage, bulk_insert_email_kb
+from grepmail.mindsdb.handlers.email import create_and_get_email_db, query_email_db, create_and_get_email_kb, create_and_get_storage, bulk_insert_email_kb, query_email_kb
     
 load_dotenv()
 
@@ -20,6 +21,11 @@ if __name__ == '__main__':
     email_kb = create_and_get_email_kb(project, EMAIL_ID)
 
     bulk_insert_email_kb(project, email_kb, email_db)
+
+    results = query_email_kb(project, email_kb, "software engineer jobs")
+    print(json.loads(results[0]['metadata'])['subject'])
+    print(results[0]['chunk_content'])
+
 
     print("------------------------------------")
     print(server.databases.list())

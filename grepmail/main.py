@@ -1,5 +1,7 @@
-import mindsdb_sdk
+import json
 import time
+
+import mindsdb_sdk
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -71,13 +73,19 @@ def run():
         with console.status("🤖 Thinking...", spinner="dots"):
             results = query_email_kb(project, email_kb, query)
 
-        # if not results:
-        #     console.print("[yellow]No results found.[/yellow]")
-        # else:
-        #     console.print("\n📬 [bold cyan]Results:[/bold cyan]")
-        #     for idx, row in enumerate(results, 1):
-        #         console.print(f"\n{idx}. [bold]{row.get('subject', 'No Subject')}[/bold]")
-        #         console.print(f"[dim]{row.get('body', '')[:200]}...[/dim]")
+        subjects = set()
+
+        if results:
+            for i, row in enumerate(results, 1):
+                metadata = json.loads(row["metadata"])
+                subject = metadata.get("subject", "No subject")
+                subjects.add(subject)
+
+            for subject in subjects:
+                console.print(f"[bold blue]Subject:[/bold blue] {subject}")
+
+        else:
+            console.print("[bold red]No results found.[/bold red]")
 
 
 if __name__ == "__main__":

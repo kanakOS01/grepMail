@@ -279,9 +279,12 @@ USING
 """
     
     try:
-        res = project.query(select_query).fetch()
-        logger.info(res)
-        return res
+        df: DataFrame = project.query(select_query).fetch()
+        logger.info(f"Query returned {len(df)} results.")
+        
+        results = df[["chunk_content", "metadata"]].to_dict(orient="records")
+        return results
+
     except Exception as e:
         logger.error(f"Failed to query knowledge base '{kb.name}': {e}")
         return None
