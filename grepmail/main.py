@@ -1,8 +1,8 @@
-import json
-import time
+import os
 
 import mindsdb_sdk
 import typer
+from dotenv import load_dotenv
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
@@ -11,18 +11,22 @@ from rich.markdown import Markdown
 
 from grepmail.mindsdb.handlers.common import create_and_get_project
 from grepmail.mindsdb.handlers.email import (
+    create_and_get_email_engine,
     create_and_get_email_db,
     create_and_get_storage,
     create_and_get_email_kb,
-    bulk_insert_email_kb,
+    bulk_insert,
     query_email_kb
 )
 
+load_dotenv()
+
+EMAIL_ID = os.getenv("EMAIL_ID")
+EMAIL_PWD = os.getenv("EMAIL_PWD")
+
+
 app = typer.Typer()
 console = Console()
-
-EMAIL_ID = "user@gmail.com"     # Replace with dynamic input or config
-EMAIL_PWD = "yourpassword"      # Don't hardcode this in production
 
 
 @app.command()
@@ -46,7 +50,11 @@ def run():
         progress.update(task, completed=100)
 
         task = progress.add_task("📧 Setting up email database...")
-        email_db = create_and_get_email_db(server, EMAIL_ID, EMAIL_PWD)
+        email_engine = create_and_get_email_engine(server, EMAIL_ID, EMAIL_PWD)
+        progress.update(task, completed=100)
+
+        task = progress.add_task("📂 Creating email database...")
+        email_db = create_and_get_email_db(server, EMAIL_ID)
         progress.update(task, completed=100)
 
         task = progress.add_task("💾 Setting up vector storage...")
@@ -58,7 +66,7 @@ def run():
         progress.update(task, completed=100)
 
         task = progress.add_task("📤 Bulk inserting emails (if empty)...")
-        bulk_insert_email_kb(project, email_kb, email_db)
+        bulk_insert(project, email_kb, email_db, email_engine)
         progress.update(task, completed=100)
 
     console.print("\n[bold green]✅ Setup complete! You can now search your emails.[/bold green]")
@@ -71,18 +79,11 @@ def run():
             break
 
         with console.status("🤖 Thinking...", spinner="dots"):
-            results = query_email_kb(project, email_kb, query)
-
-        subjects = set()
+            results = query_email_kb(project, email_kb, email_engine, query, 20)
 
         if results:
-            for i, row in enumerate(results, 1):
-                metadata = json.loads(row["metadata"])
-                subject = metadata.get("subject", "No subject")
-                subjects.add(subject)
-
-            for subject in subjects:
-                console.print(f"[bold blue]Subject:[/bold blue] {subject}")
+            console.print("\n[bold blue]Search Results:[/bold blue]")
+            console.print(results)
 
         else:
             console.print("[bold red]No results found.[/bold red]")

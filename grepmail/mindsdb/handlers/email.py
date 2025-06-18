@@ -26,6 +26,52 @@ PG_VECTOR_PASSWORD = os.getenv('PG_VECTOR_PASSWORD')
 PG_VECTOR_DB = os.getenv('PG_VECTOR_DB')
 
 
+def get_email_engine_name(email: str) -> str:
+    """
+    Generate a database name based on the email address.
+    """
+    return f'email_engine_{email.split("@")[0]}'
+
+
+def create_and_get_email_engine(server: Server, email: str, password: str) -> Database | None:
+    """
+    Create an email database in MindsDB if it doesn't exist.
+
+    Args:
+        server (Server): The MindsDB server instance.
+        email (str): The email address to create the database for.
+        password (str): The password for the email account.
+    """
+    engine_name = get_email_engine_name(email)
+    db_names = [db.name for db in server.list_databases()]
+
+    if engine_name not in db_names:
+        logger.info(f"Creating email engine '{engine_name}'...")
+        email_engine = server.create_database(
+            name=engine_name,
+            engine='email',
+            connection_args={
+                "email": email,
+                "password": password,
+                "smtp_server": SMTP_SERVER,
+                "smtp_port": SMTP_PORT,
+                "imap_server": IMAP_SERVER
+            }
+        )
+
+        if email_engine:
+            logger.info(f"Email engine '{email_engine.name}' created successfully.")
+            return email_engine
+
+        logger.error("Failed to create email engine.")
+        return None
+    
+    else:
+        logger.info(f"Email engine '{engine_name}' already exists. Skipping creation.")
+
+    return server.get_database(engine_name)
+
+
 def get_email_db_name(email: str) -> str:
     """
     Generate a database name based on the email address.
@@ -33,12 +79,13 @@ def get_email_db_name(email: str) -> str:
     return f'email_db_{email.split("@")[0]}'
 
 
-def create_and_get_email_db(server: Server, email: str, password: str) -> Database | None:
+def create_and_get_email_db(server: Server, email: str) -> Database | None:
     """
     Create an email database in MindsDB if it doesn't exist.
 
     Args:
         server (Server): The MindsDB server instance.
+        email_engine (Database): The MindsDB email engine instance.
         email (str): The email address to create the database for.
         password (str): The password for the email account.
     """
@@ -49,13 +96,14 @@ def create_and_get_email_db(server: Server, email: str, password: str) -> Databa
         logger.info(f"Creating email database '{db_name}'...")
         email_db = server.create_database(
             name=db_name,
-            engine='email',
+            engine='postgres',
             connection_args={
-                "email": email,
-                "password": password,
-                "smtp_server": SMTP_SERVER,
-                "smtp_port": SMTP_PORT,
-                "imap_server": IMAP_SERVER
+                "user": PG_VECTOR_USER,
+                "host": PG_VECTOR_HOST,
+                "port": PG_VECTOR_PORT,
+                "password": PG_VECTOR_PASSWORD,
+                "database": PG_VECTOR_DB,
+                "schema": "data",
             }
         )
 
@@ -91,7 +139,7 @@ def delete_email_db(server: Server, email: str) -> None:
         logger.info("Email database does not exist. Skipping deletion.")
 
 
-def query_email_db(server: Server, email: str, query: str) -> DataFrame | None:
+def query_email_db(db: Database, query: str) -> DataFrame | None:
     """
     Query the email database.
 
@@ -100,13 +148,10 @@ def query_email_db(server: Server, email: str, query: str) -> DataFrame | None:
         email (str): The email address associated with the database.
         query (str): The SQL query to execute on the email database.
     """
-    db_name = get_email_db_name(email)
-    email_db = server.get_database(db_name)
-
-    if email_db:
-        return email_db.query(query).fetch()
+    if db:
+        return db.query(query).fetch()
     else:
-        logger.error(f"Email database '{db_name}' not found.")
+        logger.error(f"Email database not found.")
         return None
 
 
@@ -229,7 +274,7 @@ USING
     return project.knowledge_bases.get(kb_name)
 
 
-def bulk_insert_email_kb(project: Project, kb: KnowledgeBase, db: Database) -> None:
+def bulk_insert(project: Project, kb: KnowledgeBase, db: Database, engine: Database) -> None:
     """
     Bulk insert emails into the knowledge base.
     To be used only when inserting data for the first time.
@@ -238,17 +283,14 @@ def bulk_insert_email_kb(project: Project, kb: KnowledgeBase, db: Database) -> N
         project (Project): The MindsDB project instance.
         kb (KnowledgeBase): The MindsDB knowledge base instance.
         db (Database): The MindsDB database instance.
+        engine (Database): The MindsDB email engine instance.
     """
     kb_empty_query = f"SELECT * FROM {kb.name} LIMIT 1;"
     res = project.query(kb_empty_query).fetch()
-
-    if not res.empty:
-        logger.info(f"Knowledge base '{kb.name}' is not empty. Skipping bulk insert.")
-        return
-
-    insert_query = f"""INSERT INTO {kb.name}
+    if res.empty:
+        insert_query = f"""INSERT INTO {kb.name}
 SELECT *
-FROM {db.name}.emails
+FROM {engine.name}.emails
 LIMIT 100
 USING
     kb_no_upsert = true,
@@ -256,11 +298,21 @@ USING
     threads = 1,
     track_column = id;
 """
-    
-    project.query(insert_query).fetch()
+        
+        project.query(insert_query).fetch()
+
+    db_empty_query = f"SELECT * FROM {db.name}.emails LIMIT 1;"
+    res = project.query(db_empty_query).fetch()
+    if res.empty:
+        insert_query = f"""INSERT INTO {db.name}.emails
+SELECT *
+FROM {engine.name}.emails
+LIMIT 100"""
+        
+        project.query(insert_query).fetch()
 
 
-def query_email_kb(project: Project, kb: KnowledgeBase, query: str) -> DataFrame | None:
+def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str, limit: int) -> DataFrame | None:
     """
     Query the email knowledge base.
 
@@ -273,17 +325,18 @@ def query_email_kb(project: Project, kb: KnowledgeBase, query: str) -> DataFrame
     SELECT *
 FROM {kb.name}
 WHERE content = '{query}'
-LIMIT 20
+LIMIT {limit}
 USING
     threads = 1;
 """
     
     try:
         df: DataFrame = project.query(select_query).fetch()
-        logger.info(f"Query returned {len(df)} results.")
         
-        results = df[["chunk_content", "metadata"]].to_dict(orient="records")
-        return results
+        result_indices = df[["id"]].to_dict(orient="records")
+        res = query_email_db(db, f"SELECT * FROM {db.name}.emails WHERE id IN ({', '.join(str(i['id']) for i in result_indices)})")
+
+        return res
 
     except Exception as e:
         logger.error(f"Failed to query knowledge base '{kb.name}': {e}")
