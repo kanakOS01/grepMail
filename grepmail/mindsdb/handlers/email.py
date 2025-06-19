@@ -21,11 +21,11 @@ SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
 IMAP_SERVER = os.getenv('IMAP_SERVER', 'imap.gmail.com')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-PG_VECTOR_HOST = os.getenv('PG_VECTOR_HOST')
-PG_VECTOR_PORT = int(os.getenv('PG_VECTOR_PORT'))
-PG_VECTOR_USER = os.getenv('PG_VECTOR_USER')
-PG_VECTOR_PASSWORD = os.getenv('PG_VECTOR_PASSWORD')
-PG_VECTOR_DB = os.getenv('PG_VECTOR_DB')
+POSTGRES_HOST = os.getenv('POSTGRES_HOST')
+POSTGRES_PORT = int(os.getenv('POSTGRES_PORT'))
+POSTGRES_USER = os.getenv('POSTGRES_USER')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+POSTGRES_DB = os.getenv('POSTGRES_DB')
 
 
 def get_email_engine_name(email: str) -> str:
@@ -100,11 +100,11 @@ def create_and_get_email_db(server: Server, email: str) -> Database | None:
             name=db_name,
             engine='postgres',
             connection_args={
-                "user": PG_VECTOR_USER,
-                "host": PG_VECTOR_HOST,
-                "port": PG_VECTOR_PORT,
-                "password": PG_VECTOR_PASSWORD,
-                "database": PG_VECTOR_DB,
+                "user": POSTGRES_USER,
+                "host": POSTGRES_HOST,
+                "port": POSTGRES_PORT,
+                "password": POSTGRES_PASSWORD,
+                "database": POSTGRES_DB,
                 "schema": "data",
             }
         )
@@ -183,11 +183,11 @@ def create_and_get_storage(server: Server, email: str) -> Database | None:
         #     engine='postgres',
         #     name=vs_name,
         #     connection_args={
-        #         "host": PG_VECTOR_HOST,
-        #         "port": PG_VECTOR_PORT,
-        #         "database": PG_VECTOR_DB,
-        #         "user": PG_VECTOR_USER,
-        #         "password": PG_VECTOR_PASSWORD,
+        #         "host": POSTGRES_HOST,
+        #         "port": POSTGRES_PORT,
+        #         "database": POSTGRES_DB,
+        #         "user": POSTGRES_USER,
+        #         "password": POSTGRES_PASSWORD,
         #         "distance": "cosine",
         #     }
         # )
@@ -195,11 +195,11 @@ def create_and_get_storage(server: Server, email: str) -> Database | None:
         create_query = f"""CREATE DATABASE {vs_name}
 WITH ENGINE = 'pgvector',
 PARAMETERS = {{
-    "host":  "{PG_VECTOR_HOST}",
-    "port": {PG_VECTOR_PORT},
-    "database": "{PG_VECTOR_DB}",
-    "user": "{PG_VECTOR_USER}",
-    "password": "{PG_VECTOR_PASSWORD}",
+    "host":  "{POSTGRES_HOST}",
+    "port": {POSTGRES_PORT},
+    "database": "{POSTGRES_DB}",
+    "user": "{POSTGRES_USER}",
+    "password": "{POSTGRES_PASSWORD}",
     "distance": "cosine"
 }};
 """
