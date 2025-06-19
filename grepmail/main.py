@@ -8,6 +8,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.markdown import Markdown
+from rich.table import Table
 
 from grepmail.mindsdb.handlers.common import create_and_get_project
 from grepmail.mindsdb.handlers.email import (
@@ -79,11 +80,27 @@ def run():
             break
 
         with console.status("🤖 Thinking...", spinner="dots"):
-            results = query_email_kb(project, email_kb, email_engine, query, 20)
+            results = query_email_kb(project, email_kb, email_db, query, 20)
 
         if results:
-            console.print("\n[bold blue]Search Results:[/bold blue]")
-            console.print(results)
+            console.print(f"\n[bold blue]📨 Found {len(results)} matching emails:[/bold blue]\n")
+
+            table = Table(title="📧 Email Results", show_lines=True, title_style="bold green")
+
+            table.add_column("Subject", style="bold cyan")
+            table.add_column("From", style="yellow")
+            table.add_column("Date", style="white")
+            table.add_column("Snippet", style="dim", overflow="fold")
+
+            for email in results:
+                subject = email.get("subject", "No Subject")
+                from_ = email.get("from_field", "Unknown Sender").split(" ")[-1].strip("<>")
+                date = email.get("datetime", "Unknown Date").split(" ")[0]
+                content_snippet = email.get("body", "").strip().replace("\n", " ")[:100] + "..."
+
+                table.add_row(subject, from_, str(date), content_snippet)
+
+            console.print(table)
 
         else:
             console.print("[bold red]No results found.[/bold red]")

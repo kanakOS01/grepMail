@@ -1,4 +1,6 @@
+import email
 import os
+from typing import List
 
 from dotenv import load_dotenv
 from httpx import get
@@ -139,7 +141,7 @@ def delete_email_db(server: Server, email: str) -> None:
         logger.info("Email database does not exist. Skipping deletion.")
 
 
-def query_email_db(db: Database, query: str) -> DataFrame | None:
+def query_email_db(db: Database, query: str) -> dict[str, list] | None:
     """
     Query the email database.
 
@@ -149,7 +151,10 @@ def query_email_db(db: Database, query: str) -> DataFrame | None:
         query (str): The SQL query to execute on the email database.
     """
     if db:
-        return db.query(query).fetch()
+        df = db.query(query).fetch()
+        if df.empty:
+            return None
+        return {col: df[col].to_list()[0] for col in df.columns}
     else:
         logger.error(f"Email database not found.")
         return None
@@ -312,7 +317,7 @@ LIMIT 100"""
         project.query(insert_query).fetch()
 
 
-def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str, limit: int) -> DataFrame | None:
+def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str, limit: int) -> List[dict] | None:
     """
     Query the email knowledge base.
 
@@ -331,10 +336,16 @@ USING
 """
     
     try:
-        df: DataFrame = project.query(select_query).fetch()
+        df = project.query(select_query).fetch()
         
         result_indices = df[["id"]].to_dict(orient="records")
-        res = query_email_db(db, f"SELECT * FROM {db.name}.emails WHERE id IN ({', '.join(str(i['id']) for i in result_indices)})")
+        result_indices = list({v['id']:v for v in result_indices}.values())
+        res = []
+        for i in result_indices:
+            email_query = f"SELECT * FROM {db.name}.emails WHERE id = {i['id']}"
+            email_res = query_email_db(db, email_query)
+            if email_res is not None:
+                res.append(email_res)
 
         return res
 
