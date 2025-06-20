@@ -76,6 +76,13 @@ After setting up MindsDB install the handlers given in `handlers.txt`.
 
 Setup Postgres along with the the PGVector extension.
 
+### 6. Setup Ollama and `nomic-embed-text` model
+
+Install ollama and run 
+```bash
+ollama pull nomic-embed-text
+```
+
 ### 6. Run the CLI App
 
 ```bash
