@@ -1,4 +1,5 @@
 query_results.txt
+benchmarks/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

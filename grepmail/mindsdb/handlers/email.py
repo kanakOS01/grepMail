@@ -352,3 +352,16 @@ USING
     except Exception as e:
         logger.error(f"Failed to query knowledge base '{kb.name}': {e}")
         return None
+
+
+def create_kb_index(project: Project, kb: KnowledgeBase) -> None:
+    """
+    Create an index for the email knowledge base.
+    """
+    try:
+        create_index_query = f"""CREATE INDEX ON KNOWLEDGE_BASE {project.name}.{kb.name};"""
+        project.query(create_index_query).fetch()
+        logger.info(f"Index created for knowledge base '{kb.name}'.")
+    except Exception as e:
+        logger.error(f"Failed to create index for knowledge base '{kb.name}': {e}")
+        return

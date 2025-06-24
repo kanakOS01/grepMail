@@ -17,7 +17,8 @@ from grepmail.mindsdb.handlers.email import (
     create_and_get_storage,
     create_and_get_email_kb,
     bulk_insert,
-    query_email_kb
+    query_email_kb,
+    create_kb_index,
 )
 
 load_dotenv()
@@ -70,12 +71,16 @@ def run():
         bulk_insert(project, email_kb, email_db, email_engine)
         progress.update(task, completed=100)
 
+        task = progress.add_task("Creating knowledge base index...")
+        create_kb_index(project, email_kb)
+        progress.update(task, completed=100)
+
     console.print("\n[bold green]✅ Setup complete! You can now search your emails.[/bold green]")
 
     # Placeholder for query loop
     while True:
-        query = Prompt.ask("\n🔍 Enter a semantic email query (or 'exit')")
-        if query.strip().lower() == 'exit':
+        query = Prompt.ask("\n🔍 Enter a semantic email query (or '/exit')")
+        if query.strip().lower() == '/exit':
             console.print("👋 Goodbye!")
             break
 
