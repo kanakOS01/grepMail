@@ -8,6 +8,7 @@ from mindsdb_sdk.server import Server
 from mindsdb_sdk.databases import Database
 from mindsdb_sdk.projects import Project
 from mindsdb_sdk.knowledge_bases import KnowledgeBase
+from mindsdb_sdk.jobs import Job
 from pandas import DataFrame
 
 from grepmail.logger import logger
@@ -203,7 +204,7 @@ PARAMETERS = {{
     "distance": "cosine"
 }};
 """
-
+        
         # if pg_vs:
         #     logger.info(f"Storage '{pg_vs.name}' created successfully.")
         #     return pg_vs
@@ -357,6 +358,10 @@ USING
 def create_kb_index(project: Project, kb: KnowledgeBase) -> None:
     """
     Create an index for the email knowledge base.
+
+    Args:
+        project (Project): The MindsDB project instance.
+        kb (KnowledgeBase): The MindsDB knowledge base instance.
     """
     try:
         create_index_query = f"""CREATE INDEX ON KNOWLEDGE_BASE {project.name}.{kb.name};"""
@@ -364,4 +369,52 @@ def create_kb_index(project: Project, kb: KnowledgeBase) -> None:
         logger.info(f"Index created for knowledge base '{kb.name}'.")
     except Exception as e:
         logger.error(f"Failed to create index for knowledge base '{kb.name}': {e}")
-        return
+
+
+def create_jobs(project: Project, kb: KnowledgeBase, db: Database, engine: Database) -> None:
+    """
+    Create an hourly job to update the email knowledge base and database.
+
+    Args:
+        project (Project): The MindsDB project instance.
+        kb_update_query (str): The SQL query to update the knowledge base.
+        db_update_query (str): The SQL query to update the database.
+    """
+    kb_insert_query = f"""INSERT INTO {kb.name}
+SELECT *
+FROM {engine.name}.emails
+WHERE id > (
+    SELECT id FROM {db.name}.emails ORDER BY id DESC LIMIT 1
+)
+USING
+    kb_no_upsert = true,
+    batch_size = 50,
+    threads = 1,
+    track_column = id;
+"""
+    
+    db_insert_query = f"""INSERT INTO {db.name}.emails
+SELECT *
+FROM {engine.name}.emails
+WHERE id > (
+    SELECT id FROM {db.name}.emails ORDER BY id DESC LIMIT 1
+);
+"""
+
+    jobs_list = project.jobs.list()
+    job_names = [job.name for job in jobs_list]
+
+    if 'kb_update_job' in job_names and 'db_update_job' in job_names:
+        logger.info("Jobs already exist. Skipping creation.")
+        return None
+    
+    kb_update_job = project.create_job(
+        name='kb_update_job',
+        query_str=kb_insert_query,
+        repeat_str='1 hour',
+    )
+    db_update_job = project.create_job(
+        name='db_update_job',
+        query_str=db_insert_query,
+        repeat_str='1 hour',
+    )

@@ -19,6 +19,7 @@ from grepmail.mindsdb.handlers.email import (
     bulk_insert,
     query_email_kb,
     create_kb_index,
+    create_jobs,
 )
 
 load_dotenv()
@@ -73,6 +74,10 @@ def run():
 
         task = progress.add_task("Creating knowledge base index...")
         create_kb_index(project, email_kb)
+        progress.update(task, completed=100)
+
+        task = progress.add_task("Creating jobs for email processing...")
+        create_jobs(project, email_kb, email_db, email_engine)
         progress.update(task, completed=100)
 
     console.print("\n[bold green]✅ Setup complete! You can now search your emails.[/bold green]")
