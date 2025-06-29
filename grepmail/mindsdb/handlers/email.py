@@ -3,7 +3,6 @@ import os
 from typing import List
 
 from dotenv import load_dotenv
-from httpx import get
 from mindsdb_sdk.server import Server
 from mindsdb_sdk.databases import Database
 from mindsdb_sdk.projects import Project
@@ -318,7 +317,7 @@ LIMIT 100"""
         project.query(insert_query).fetch()
 
 
-def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str, limit: int) -> List[dict] | None:
+def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str, limit: int, dt_filter: str | None = None) -> List[dict] | None:
     """
     Query the email knowledge base.
 
@@ -327,10 +326,21 @@ def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str
         kb (KnowledgeBase): The MindsDB knowledge base instance.
         query (str): The SQL query to execute on the knowledge base.
     """
-    select_query = f"""
-    SELECT *
+    if filter:
+        select_query = f"""SELECT *
+FROM {kb.name}
+WHERE datetime LIKE '{dt_filter}%'
+AND content = '{query}'
+AND relevance >= 0.5
+LIMIT {limit}
+USING
+    threads = 1;
+"""
+    else:
+        f"""SELECT *
 FROM {kb.name}
 WHERE content = '{query}'
+AND relevance >= 0.5
 LIMIT {limit}
 USING
     threads = 1;
@@ -408,12 +418,12 @@ WHERE id > (
         logger.info("Jobs already exist. Skipping creation.")
         return None
     
-    kb_update_job = project.create_job(
+    _ = project.create_job(
         name='kb_update_job',
         query_str=kb_insert_query,
         repeat_str='1 hour',
     )
-    db_update_job = project.create_job(
+    _ = project.create_job(
         name='db_update_job',
         query_str=db_insert_query,
         repeat_str='1 hour',
