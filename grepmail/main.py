@@ -137,6 +137,26 @@ def run():
             else:
                 console.print("[bold red]No recent emails found.[/bold red]")
 
+        elif cmd.startswith("/clear"):
+            console.clear()
+            console.print(
+                Panel.fit(
+                    "[bold yellow]/help[/bold yellow] - Show this help\n"
+                    "[bold yellow]/bye[/bold yellow] or [bold yellow]/exit[/bold yellow] - Exit the program\n"
+                    "[bold yellow]/clear[/bold yellow] - Clear the console\n"
+                    "[bold yellow]/ls [n][/bold yellow] - List last n emails (default 5)\n"
+                    "[bold yellow]/grep <pattern>[/bold yellow] - Regex search on email subjects\n"
+                    "[bold yellow]/fzf <query>[/bold yellow] - Semantic search using vector embeddings\n"
+                    "[bold yellow]/on <yyyy-mm-dd> <query>[/bold yellow] - Semantic search for emails on a specific date\n"
+                    "[bold yellow]/fetch <id>[/bold yellow] - Fetch entire email by id\n"
+                    "[bold yellow]/gist <id>[/bold yellow] - Generate a gist for the email with the given id\n"
+                    "\nOr just type your natural language query to search emails!",
+                    title="📘 Commands",
+                    border_style="blue"
+                )
+            )
+            
+
         elif cmd.startswith("/grep"):
             import re
             pattern = query.replace("/grep", "").strip()
@@ -303,6 +323,7 @@ def run():
                 Panel.fit(
                     "[bold yellow]/help[/bold yellow] - Show this help\n"
                     "[bold yellow]/bye[/bold yellow] or [bold yellow]/exit[/bold yellow] - Exit the program\n"
+                    "[bold yellow]/clear[/bold yellow] - Clear the console\n"
                     "[bold yellow]/ls [n][/bold yellow] - List last n emails (default 5)\n"
                     "[bold yellow]/grep <pattern>[/bold yellow] - Regex search on email subjects\n"
                     "[bold yellow]/fzf <query>[/bold yellow] - Semantic search using vector embeddings\n"
