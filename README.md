@@ -35,11 +35,14 @@ grepmail is a terminal-based CLI app that lets you **search your emails using na
 
 This app makes use of the following MindsDB features:
 * [**Create KB**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#create-knowledge-base-syntax): Create a knowledge base to store email data.
-* [**Email Engine**](https://docs.mindsdb.com/integrations/app-integrations/email#email): Connects to your email provider via MindsDB's built-in engine
-* [**Vector Storage**](https://docs.mindsdb.com/integrations/vector-db-integrations/pgvector#pgvector): Embeds email content as vector chunks using `create vector store`
-* [**Knowledge Base**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#create-knowledge-base-syntax): Stores vectors in a searchable format with MindsDB's `CREATE KNOWLEDGE_BASE`
-* [**Natural Language Queries**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#select-from-kb-syntax): Allows semantic querying using SQL-style syntax over the vector store
-* [**Metadata columns**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#metadata-columns): Stores email `subject` and `datetime` as metadata.
+* [**Email Engine**](https://docs.mindsdb.com/integrations/app-integrations/email#email): Connects to your email provider via MindsDB's built-in engine.
+* [**Vector Storage**](https://docs.mindsdb.com/integrations/vector-db-integrations/pgvector#pgvector): Embeds email content as vector chunks using `create vector store`.
+* [**Knowledge Base**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#insert-into-syntax): Stores vectors in a searchable format with MindsDB's `INSERT INTO ...`.
+* [**Indexing**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#create-index-on-knowledge-base-syntax): Indexing of knowledge base for efficient querying.
+* [**Natural Language Queries**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#select-from-kb-syntax): Allows semantic querying using SQL-style syntax over the vector store.
+* [**Metadata filtering**](https://docs.mindsdb.com/mindsdb_sql/knowledge-bases#metadata-columns): Metadata filtering on date along with semantic search.
+* [**Jobs**](https://docs.mindsdb.com/rest/jobs/create#create-a-job): Keep the local db and knowledge base up to date.
+* [**AI Tables**](https://docs.mindsdb.com/generative-ai-tables#what-are-generative-ai-tables): Converting emails into brief summaries.
 
 ---
 
