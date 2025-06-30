@@ -9,7 +9,12 @@ from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.table import Table
 
-from grepmail.mindsdb.handlers.common import create_and_get_project
+from grepmail.mindsdb.handlers.common import (
+    create_and_get_project,
+    create_gemini_engine,
+    create_and_get_gist_model,
+    query_gist_model
+)
 from grepmail.mindsdb.handlers.email import (
     create_and_get_email_engine,
     create_and_get_email_db,
@@ -21,6 +26,8 @@ from grepmail.mindsdb.handlers.email import (
     create_kb_index,
     create_jobs,
 )
+from grepmail.logger import logger
+
 
 load_dotenv()
 
@@ -80,6 +87,11 @@ def run():
         create_jobs(project, email_kb, email_db, email_engine)
         progress.update(task, completed=100)
 
+        task = progress.add_task("Setting up Gemini model...")
+        create_gemini_engine(server)
+        gist_model = create_and_get_gist_model(project)
+        progress.update(task, completed=100)
+
     console.print("\n[bold green]✅ Setup complete! You can now search your emails.[/bold green]")
     console.print(
         "[bold yellow]Tip:[/bold yellow] Use [bold blue]/help[/bold blue] to see available commands.\n"
@@ -100,20 +112,26 @@ def run():
                 count = 5
 
             with console.status("📬 Fetching latest emails...", spinner="dots"):
-                query_str = f"SELECT * FROM {email_db.name} ORDER BY datetime DESC LIMIT {count};"
+                query_str = f"SELECT id, subject, from_field, datetime FROM {email_db.name}.emails ORDER BY datetime DESC LIMIT {count};"
                 res = query_email_db(email_db, query_str)
 
             if res:
                 table = Table(title=f"🕐 Last {count} Emails", show_lines=True)
+                table.add_column("ID", style="cyan")
                 table.add_column("Subject", style="cyan")
                 table.add_column("From", style="yellow")
                 table.add_column("Date", style="white")
 
                 for row in res:
+                    id = row.get("id")
                     subject = row.get("subject", "No Subject")
                     from_ = row.get("from_field", "Unknown").split(" ")[-1].strip("<>")
-                    date = row.get("datetime", "Unknown Date").split(" ")[0]
-                    table.add_row(subject, from_, date)
+                    date = row.get("datetime")
+                    if date:
+                        date = date.split(" ")[0]
+                    else:
+                        date = "Unknown Date"
+                    table.add_row(str(id), subject, from_, date)
 
                 console.print(table)
             else:
@@ -127,21 +145,27 @@ def run():
                 continue
 
             with console.status("🧵 Grepping subjects...", spinner="dots"):
-                res = project.query(f"SELECT * FROM {email_db.name};").fetch()
+                res = query_email_db(email_db, f"SELECT id, subject, from_field, datetime FROM {email_db.name}.emails;")
 
             matches = [row for row in res if re.search(pattern, row.get("subject", ""), re.IGNORECASE)]
 
             if matches:
                 table = Table(title=f"🔎 Subjects matching /{pattern}/", show_lines=True)
+                table.add_column("ID", style="cyan")
                 table.add_column("Subject", style="cyan")
                 table.add_column("From", style="yellow")
                 table.add_column("Date", style="white")
 
                 for row in matches:
+                    id = row.get("id")
                     subject = row.get("subject", "No Subject")
                     from_ = row.get("from_field", "Unknown").split(" ")[-1].strip("<>")
-                    date = row.get("datetime", "Unknown Date").split(" ")[0]
-                    table.add_row(subject, from_, date)
+                    date = row.get("datetime")
+                    if date:
+                        date = date.split(" ")[0]
+                    else:
+                        date = "Unknown Date"
+                    table.add_row(str(id), subject, from_, date)
 
                 console.print(table)
             else:
@@ -158,17 +182,23 @@ def run():
 
             if results:
                 table = Table(title=f"🧠 Semantic Results for: {query_term}", show_lines=True)
+                table.add_column("ID", style="cyan")
                 table.add_column("Subject", style="bold cyan")
                 table.add_column("From", style="yellow")
                 table.add_column("Date", style="white")
                 table.add_column("Snippet", style="dim", overflow="fold")
 
                 for email in results:
-                    subject = email.get("subject", "No Subject")
+                    id = email.get("id")
+                    subject = email.get("subject", "No Subject")[:100] + "..."
                     from_ = email.get("from_field", "Unknown").split(" ")[-1].strip("<>")
-                    date = email.get("datetime", "Unknown Date").split(" ")[0]
+                    date = email.get("datetime")
+                    if date:
+                        date = date.split(" ")[0]
+                    else:
+                        date = "Unknown Date"
                     snippet = email.get("body", "").strip().replace("\n", " ")[:100] + "..."
-                    table.add_row(subject, from_, date, snippet)
+                    table.add_row(str(id), subject, from_, date, snippet)
 
                 console.print(table)
             else:
@@ -191,17 +221,23 @@ def run():
 
             if results:
                 table = Table(title=f"🧠 Results for '{user_query}' on {date_filter}", show_lines=True)
+                table.add_column("ID", style="cyan")
                 table.add_column("Subject", style="cyan")
                 table.add_column("From", style="yellow")
                 table.add_column("Date", style="white")
                 table.add_column("Snippet", style="dim")
 
                 for email in results:
-                    subject = email.get("subject", "No Subject")
+                    id = email.get("id")
+                    subject = email.get("subject", "No Subject")[:100] + "..."
                     from_ = email.get("from_field", "Unknown").split(" ")[-1].strip("<>")
-                    date = email.get("datetime", "Unknown Date").split(" ")[0]
+                    date = email.get("datetime")
+                    if date:
+                        date = date.split(" ")[0]
+                    else:
+                        date = "Unknown Date"
                     snippet = email.get("body", "").strip().replace("\n", " ")[:100] + "..."
-                    table.add_row(subject, from_, date, snippet)
+                    table.add_row(str(id), subject, from_, date, snippet)
 
                 console.print(table)
             else:
@@ -217,8 +253,8 @@ def run():
 
             with console.status(f"📥 Fetching email with ID {email_id}...", spinner="dots"):
                 try:
-                    query = f"SELECT * FROM {email_db.name} WHERE id = {email_id};"
-                    email = query_email_db(email_db, query)
+                    query = f"SELECT * FROM {email_db.name}.emails WHERE id = {email_id};"
+                    email = query_email_db(email_db, query)[0]
                     if email:
                         console.print(Panel.fit(
                             f"[bold cyan]Subject:[/bold cyan] {email.get('subject', 'No Subject')}\n"
@@ -233,6 +269,35 @@ def run():
                 except Exception as e:
                     console.print(f"[red]Error fetching email: {str(e)}[/red]")
 
+        elif cmd.startswith("/gist "):
+            parts = cmd.split(" ", 1)
+            if len(parts) < 2 or not parts[1].isdigit():
+                console.print("[red]Usage: /gist <id>[/red]")
+                continue
+
+            email_id = parts[1]
+
+            with console.status(f"📝 Generating gist for email ID {email_id}...", spinner="dots"):
+                try:
+                    query = f"SELECT * FROM {email_db.name}.emails WHERE id = {email_id};"
+                    email = query_email_db(email_db, query)[0]
+                    if email:
+                        gist_content = f"Subject: {email.get('subject', 'No Subject')}\n"
+                        gist_content += f"From: {email.get('from_field', 'Unknown')}\n"
+                        gist_content += email.get('body', 'No content available').strip()
+
+                        res = query_gist_model(project, gist_content)
+
+                        console.print(Panel.fit(
+                            res,
+                            title=f"Gist for Email ID: {email_id}",
+                            border_style="blue"
+                        ))
+                    else:
+                        console.print("[red]No email found with that ID.[/red]")
+                except Exception as e:
+                    console.print(f"[red]Error generating gist: {str(e)}[/red]")
+
         elif cmd in ["/help", "help"]:
             console.print(
                 Panel.fit(
@@ -243,6 +308,7 @@ def run():
                     "[bold yellow]/fzf <query>[/bold yellow] - Semantic search using vector embeddings\n"
                     "[bold yellow]/on <yyyy-mm-dd> <query>[/bold yellow] - Semantic search for emails on a specific date\n"
                     "[bold yellow]/fetch <id>[/bold yellow] - Fetch entire email by id\n"
+                    "[bold yellow]/gist <id>[/bold yellow] - Generate a gist for the email with the given id\n"
                     "\nOr just type your natural language query to search emails!",
                     title="📘 Commands",
                     border_style="blue"
@@ -251,25 +317,30 @@ def run():
 
         else:
             with console.status("🤖 Thinking...", spinner="dots"):
-                results = query_email_kb(project, email_kb, email_db, query, 20)
+                results = query_email_kb(project, email_kb, email_db, query, 10)
 
             if results:
                 console.print(f"\n[bold blue]📨 Found {len(results)} matching emails:[/bold blue]\n")
 
                 table = Table(title="📧 Email Results", show_lines=True, title_style="bold green")
-
+                table.add_column("ID", style="cyan")
                 table.add_column("Subject", style="bold cyan")
                 table.add_column("From", style="yellow")
                 table.add_column("Date", style="white")
                 table.add_column("Snippet", style="dim", overflow="fold")
 
                 for email in results:
-                    subject = email.get("subject", "No Subject")
+                    id = email.get("id")
+                    subject = email.get("subject", "No Subject")[:100] + "..."
                     from_ = email.get("from_field", "Unknown").split(" ")[-1].strip("<>")
-                    date = email.get("datetime", "Unknown Date").split(" ")[0]
+                    date = email.get("datetime")
+                    if date:
+                        date = date.split(" ")[0]
+                    else:
+                        date = "Unknown Date"
                     content_snippet = email.get("body", "").strip().replace("\n", " ")[:100] + "..."
 
-                    table.add_row(subject, from_, str(date), content_snippet)
+                    table.add_row(str(id), subject, from_, str(date), content_snippet)
 
                 console.print(table)
             else:

@@ -1,4 +1,3 @@
-import email
 import os
 from typing import List
 
@@ -151,12 +150,12 @@ def query_email_db(db: Database, query: str) -> dict[str, list] | None:
         query (str): The SQL query to execute on the email database.
     """
     if db:
+        logger.info(f"Querying email database '{db.name}' with query: {query}")
         df = db.query(query).fetch()
         if df.empty:
             return None
-        return {col: df[col].to_list()[0] for col in df.columns}
+        return df.to_dict(orient='records')
     else:
-        logger.error(f"Email database not found.")
         return None
 
 
@@ -294,25 +293,25 @@ def bulk_insert(project: Project, kb: KnowledgeBase, db: Database, engine: Datab
     res = project.query(kb_empty_query).fetch()
     if res.empty:
         insert_query = f"""INSERT INTO {kb.name}
-SELECT *
-FROM {engine.name}.emails
-LIMIT 100
-USING
-    kb_no_upsert = true,
-    batch_size = 50,
-    threads = 1,
-    track_column = id;
-"""
-        
+            SELECT *
+            FROM {engine.name}.emails
+            LIMIT 100
+            USING
+                kb_no_upsert = true,
+                batch_size = 50,
+                threads = 1,
+                track_column = id;
+        """
         project.query(insert_query).fetch()
 
     db_empty_query = f"SELECT * FROM {db.name}.emails LIMIT 1;"
     res = project.query(db_empty_query).fetch()
     if res.empty:
         insert_query = f"""INSERT INTO {db.name}.emails
-SELECT *
-FROM {engine.name}.emails
-LIMIT 100"""
+            SELECT *
+            FROM {engine.name}.emails
+            LIMIT 100;
+        """
         
         project.query(insert_query).fetch()
 
@@ -326,26 +325,25 @@ def query_email_kb(project: Project, kb: KnowledgeBase, db: Database, query: str
         kb (KnowledgeBase): The MindsDB knowledge base instance.
         query (str): The SQL query to execute on the knowledge base.
     """
-    if filter:
+    if dt_filter:
         select_query = f"""SELECT *
 FROM {kb.name}
 WHERE datetime LIKE '{dt_filter}%'
 AND content = '{query}'
-AND relevance >= 0.5
 LIMIT {limit}
 USING
     threads = 1;
 """
     else:
-        f"""SELECT *
+        select_query = f"""SELECT *
 FROM {kb.name}
 WHERE content = '{query}'
-AND relevance >= 0.5
 LIMIT {limit}
 USING
     threads = 1;
 """
-    
+    logger.info(f"Querying knowledge base '{kb.name}' with query: {select_query}")
+
     try:
         df = project.query(select_query).fetch()
         
@@ -353,10 +351,10 @@ USING
         result_indices = list({v['id']:v for v in result_indices}.values())
         res = []
         for i in result_indices:
-            email_query = f"SELECT * FROM {db.name}.emails WHERE id = {i['id']}"
+            email_query = f"SELECT * FROM {db.name}.emails WHERE id = {i['id']};"
             email_res = query_email_db(db, email_query)
             if email_res is not None:
-                res.append(email_res)
+                res.append(email_res[0])
 
         return res
 
